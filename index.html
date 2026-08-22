@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Bot Test Console</title>
+<style>
+  :root { color-scheme: light dark; }
+  body {
+    font-family: system-ui, -apple-system, sans-serif;
+    max-width: 860px;
+    margin: 2.5rem auto;
+    padding: 0 1.5rem;
+    line-height: 1.5;
+  }
+  h1 { margin-bottom: 0.25rem; }
+  fieldset {
+    display: grid;
+    gap: 1.1rem;
+    margin: 1.5rem 0;
+    padding: 1.25rem 1.5rem 1.5rem;
+    border: 1px solid #8884;
+    border-radius: 12px;
+    background: #80808010;
+  }
+  legend { padding: 0 0.4rem; font-weight: 600; opacity: 0.85; }
+  label { display: block; font-size: 0.85rem; opacity: 0.75; margin-bottom: 0.35rem; }
+  input, select, textarea {
+    font: inherit;
+    width: 100%;
+    box-sizing: border-box;
+    padding: 0.55rem 0.7rem;
+    border-radius: 7px;
+    border: 1px solid #8886;
+    background: #80808008;
+  }
+  #chat {
+    border: 1px solid #8884;
+    border-radius: 12px;
+    padding: 1.25rem;
+    min-height: 320px;
+    max-height: 55vh;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0.9rem;
+  }
+  .msg { padding: 0.65rem 0.9rem; border-radius: 10px; max-width: 80%; white-space: pre-wrap; }
+  .user { align-self: flex-end; background: #2563eb; color: white; }
+  .bot { align-self: flex-start; background: #80808022; }
+  .error { align-self: flex-start; background: #dc262633; }
+  form#send { display: flex; gap: 0.75rem; margin-top: 1.25rem; }
+  form#send textarea { flex: 1; resize: vertical; min-height: 2.8rem; }
+  button {
+    font: inherit;
+    padding: 0.6rem 1.4rem;
+    border-radius: 7px;
+    border: none;
+    background: #2563eb;
+    color: white;
+    cursor: pointer;
+    align-self: flex-start;
+  }
+  button:disabled { opacity: 0.5; cursor: wait; }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; }
+  .row + .row { margin-top: 1.1rem; }
+  .row.session { grid-template-columns: 1fr auto auto; align-items: end; }
+  small { opacity: 0.6; display: block; margin-bottom: 0.5rem; }
+  button.secondary { background: #80808030; color: inherit; }
+</style>
+</head>
+<body>
+
+<h1>🤖 Bot Test Console</h1>
+<small>Habla directo con <code>/web/chat/test</code> del backend, sin pasar por Zoho.</small>
+
+<fieldset>
+  <legend>Configuración</legend>
+  <div class="row">
+    <div>
+      <label for="backendUrl">Backend URL</label>
+      <input id="backendUrl" type="text" placeholder="http://localhost:8000">
+    </div>
+    <div>
+      <label for="secret">X-Test-Secret</label>
+      <input id="secret" type="password" placeholder="CHAT_TEST_SECRET">
+    </div>
+  </div>
+  <div class="row">
+    <div>
+      <label for="channel">Canal</label>
+      <select id="channel">
+        <option value="website">website</option>
+        <option value="whatsapp">whatsapp</option>
+        <option value="instagram">instagram</option>
+        <option value="flow">flow</option>
+      </select>
+    </div>
+    <div>
+      <label for="visitorLanguage">Visitor language (opcional, ej. en/fr)</label>
+      <input id="visitorLanguage" type="text" placeholder="(auto)">
+    </div>
+  </div>
+  <div class="row session">
+    <div>
+      <label for="sessionId">Session ID</label>
+      <input id="sessionId" type="text" readonly>
+    </div>
+    <button type="button" id="newSession">Nueva sesión</button>
+    <button type="button" id="download" class="secondary">⬇ Descargar (.md)</button>
+  </div>
+</fieldset>
+
+<div id="chat"></div>
+
+<form id="send">
+  <textarea id="message" placeholder="Escribe un mensaje de prueba..." required></textarea>
+  <button type="submit" id="sendBtn">Enviar</button>
+</form>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const chatEl = $('chat');
+
+function loadSettings() {
+  $('backendUrl').value = localStorage.getItem('bt_backendUrl') || 'https://angelbot-backend-staging.thankfulsea-e0e163f9.westus2.azurecontainerapps.io';
+  $('secret').value = localStorage.getItem('bt_secret') || '';
+  $('channel').value = localStorage.getItem('bt_channel') || 'website';
+}
+function saveSettings() {
+  localStorage.setItem('bt_backendUrl', $('backendUrl').value.trim());
+  localStorage.setItem('bt_secret', $('secret').value);
+  localStorage.setItem('bt_channel', $('channel').value);
+}
+['backendUrl', 'secret', 'channel'].forEach((id) => $(id).addEventListener('change', saveSettings));
+
+let transcript = [];
+
+function newSession() {
+  const id = 'ui-' + crypto.randomUUID();
+  $('sessionId').value = id;
+  localStorage.setItem('bt_sessionId', id);
+  chatEl.innerHTML = '';
+  transcript = [];
+}
+$('newSession').addEventListener('click', newSession);
+
+function addMsg(text, cls) {
+  const div = document.createElement('div');
+  div.className = 'msg ' + cls;
+  div.textContent = text;
+  chatEl.appendChild(div);
+  chatEl.scrollTop = chatEl.scrollHeight;
+  transcript.push({ cls, text, ts: new Date().toISOString() });
+}
+
+function labelFor(cls) {
+  return cls === 'user' ? 'Usuario' : cls === 'bot' ? 'Bot' : 'Error';
+}
+
+function buildMarkdown() {
+  const lines = [
+    `# Conversación de prueba — Bot Test Console`,
+    ``,
+    `- **Backend:** ${$('backendUrl').value.trim()}`,
+    `- **Canal:** ${$('channel').value}`,
+    `- **Session ID:** ${$('sessionId').value}`,
+    `- **Exportado:** ${new Date().toISOString()}`,
+    ``,
+    `---`,
+    ``,
+  ];
+  for (const m of transcript) {
+    lines.push(`**${labelFor(m.cls)}** _(${m.ts})_`);
+    lines.push('');
+    lines.push(m.text);
+    lines.push('');
+  }
+  return lines.join('\n');
+}
+
+$('download').addEventListener('click', () => {
+  if (!transcript.length) return;
+  const md = buildMarkdown();
+  const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+  a.href = url;
+  a.download = `conversacion_${$('channel').value}_${stamp}.md`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+});
+
+$('send').addEventListener('submit', async (ev) => {
+  ev.preventDefault();
+  const message = $('message').value.trim();
+  if (!message) return;
+
+  const backendUrl = $('backendUrl').value.trim().replace(/\/$/, '');
+  const secret = $('secret').value;
+  const channel = $('channel').value;
+  const visitorLanguage = $('visitorLanguage').value.trim() || null;
+  const sessionId = $('sessionId').value;
+
+  addMsg(message, 'user');
+  $('message').value = '';
+  $('sendBtn').disabled = true;
+
+  try {
+    const res = await fetch(backendUrl + '/web/chat/test', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Test-Secret': secret,
+      },
+      body: JSON.stringify({
+        message,
+        channel,
+        session_id: sessionId,
+        visitor_language: visitorLanguage,
+      }),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      addMsg(`[${res.status}] ${data.detail || JSON.stringify(data)}`, 'error');
+    } else {
+      addMsg(data.answer, 'bot');
+    }
+  } catch (err) {
+    addMsg('Error de red: ' + err.message, 'error');
+  } finally {
+    $('sendBtn').disabled = false;
+  }
+});
+
+loadSettings();
+const savedSession = localStorage.getItem('bt_sessionId');
+if (savedSession) {
+  $('sessionId').value = savedSession;
+} else {
+  newSession();
+}
+</script>
+
+</body>
+</html>
