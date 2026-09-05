@@ -71,7 +71,7 @@
 <body>
 
 <h1>🤖 Bot Test Console</h1>
-<small>Habla directo con <code>/web/chat/test</code> del backend, sin pasar por Zoho.</small>
+<small>Habla directo con <code>/web/chat/test</code> (legacy) o <code>/web/chat/test-hexagonal</code> (pipeline hexagonal) del backend, sin pasar por Zoho.</small>
 
 <fieldset>
   <legend>Configuración</legend>
@@ -100,6 +100,15 @@
       <input id="visitorLanguage" type="text" placeholder="(auto)">
     </div>
   </div>
+  <div class="row">
+    <div>
+      <label for="engine">Pipeline</label>
+      <select id="engine">
+        <option value="legacy">Legacy (/web/chat/test)</option>
+        <option value="hexagonal">Hexagonal (/web/chat/test-hexagonal)</option>
+      </select>
+    </div>
+  </div>
   <div class="row session">
     <div>
       <label for="sessionId">Session ID</label>
@@ -125,13 +134,19 @@ function loadSettings() {
   $('backendUrl').value = localStorage.getItem('bt_backendUrl') || 'https://angelbot-backend-staging.thankfulsea-e0e163f9.westus2.azurecontainerapps.io';
   $('secret').value = localStorage.getItem('bt_secret') || '';
   $('channel').value = localStorage.getItem('bt_channel') || 'website';
+  $('engine').value = localStorage.getItem('bt_engine') || 'legacy';
 }
 function saveSettings() {
   localStorage.setItem('bt_backendUrl', $('backendUrl').value.trim());
   localStorage.setItem('bt_secret', $('secret').value);
   localStorage.setItem('bt_channel', $('channel').value);
+  localStorage.setItem('bt_engine', $('engine').value);
 }
-['backendUrl', 'secret', 'channel'].forEach((id) => $(id).addEventListener('change', saveSettings));
+['backendUrl', 'secret', 'channel', 'engine'].forEach((id) => $(id).addEventListener('change', saveSettings));
+
+function enginePath() {
+  return $('engine').value === 'hexagonal' ? '/web/chat/test-hexagonal' : '/web/chat/test';
+}
 
 let transcript = [];
 
@@ -161,7 +176,7 @@ function buildMarkdown() {
   const lines = [
     `# Conversación de prueba — Bot Test Console`,
     ``,
-    `- **Backend:** ${$('backendUrl').value.trim()}`,
+    `- **Backend:** ${$('backendUrl').value.trim()}${enginePath()}`,
     `- **Canal:** ${$('channel').value}`,
     `- **Session ID:** ${$('sessionId').value}`,
     `- **Exportado:** ${new Date().toISOString()}`,
@@ -209,7 +224,7 @@ $('send').addEventListener('submit', async (ev) => {
   $('sendBtn').disabled = true;
 
   try {
-    const res = await fetch(backendUrl + '/web/chat/test', {
+    const res = await fetch(backendUrl + enginePath(), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
