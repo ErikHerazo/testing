@@ -71,7 +71,7 @@
 <body>
 
 <h1>🤖 Bot Test Console</h1>
-<small>Habla directo con <code>/web/chat/test</code> del backend, sin pasar por Zoho.</small>
+<small>Habla directo con <code>/web/chat/test-hexagonal</code> del backend, sin pasar por Zoho.</small>
 
 <fieldset>
   <legend>Configuración</legend>
@@ -100,6 +100,15 @@
       <input id="visitorLanguage" type="text" placeholder="(auto)">
     </div>
   </div>
+  <div class="row">
+    <div>
+      <label for="engine">Modelo</label>
+      <select id="engine">
+        <option value="azure_openai">GPT-4o (Azure OpenAI)</option>
+        <option value="claude">Claude Sonnet 5 (vía Foundry)</option>
+      </select>
+    </div>
+  </div>
   <div class="row session">
     <div>
       <label for="sessionId">Session ID</label>
@@ -125,13 +134,19 @@ function loadSettings() {
   $('backendUrl').value = localStorage.getItem('bt_backendUrl') || 'https://angelbot-backend-staging.thankfulsea-e0e163f9.westus2.azurecontainerapps.io';
   $('secret').value = localStorage.getItem('bt_secret') || '';
   $('channel').value = localStorage.getItem('bt_channel') || 'website';
+  $('engine').value = localStorage.getItem('bt_engine') || 'azure_openai';
 }
 function saveSettings() {
   localStorage.setItem('bt_backendUrl', $('backendUrl').value.trim());
   localStorage.setItem('bt_secret', $('secret').value);
   localStorage.setItem('bt_channel', $('channel').value);
+  localStorage.setItem('bt_engine', $('engine').value);
 }
-['backendUrl', 'secret', 'channel'].forEach((id) => $(id).addEventListener('change', saveSettings));
+['backendUrl', 'secret', 'channel', 'engine'].forEach((id) => $(id).addEventListener('change', saveSettings));
+
+function engineLabel(value) {
+  return value === 'claude' ? 'Claude Sonnet 5 (Foundry)' : 'GPT-4o (Azure OpenAI)';
+}
 
 let transcript = [];
 
@@ -144,17 +159,28 @@ function newSession() {
 }
 $('newSession').addEventListener('click', newSession);
 
-function addMsg(text, cls) {
+function addMsg(text, cls, meta) {
   const div = document.createElement('div');
   div.className = 'msg ' + cls;
-  div.textContent = text;
+  if (meta) {
+    const tag = document.createElement('small');
+    tag.style.opacity = '0.7';
+    tag.style.display = 'block';
+    tag.style.marginBottom = '0.2rem';
+    tag.textContent = meta;
+    div.appendChild(tag);
+  }
+  const body = document.createElement('span');
+  body.textContent = text;
+  div.appendChild(body);
   chatEl.appendChild(div);
   chatEl.scrollTop = chatEl.scrollHeight;
-  transcript.push({ cls, text, ts: new Date().toISOString() });
+  transcript.push({ cls, text, meta, ts: new Date().toISOString() });
 }
 
-function labelFor(cls) {
-  return cls === 'user' ? 'Usuario' : cls === 'bot' ? 'Bot' : 'Error';
+function labelFor(cls, meta) {
+  const base = cls === 'user' ? 'Usuario' : cls === 'bot' ? 'Bot' : 'Error';
+  return meta ? `${base} (${meta})` : base;
 }
 
 function buildMarkdown() {
@@ -163,6 +189,7 @@ function buildMarkdown() {
     ``,
     `- **Backend:** ${$('backendUrl').value.trim()}`,
     `- **Canal:** ${$('channel').value}`,
+    `- **Modelo:** ${engineLabel($('engine').value)}`,
     `- **Session ID:** ${$('sessionId').value}`,
     `- **Exportado:** ${new Date().toISOString()}`,
     ``,
@@ -170,7 +197,7 @@ function buildMarkdown() {
     ``,
   ];
   for (const m of transcript) {
-    lines.push(`**${labelFor(m.cls)}** _(${m.ts})_`);
+    lines.push(`**${labelFor(m.cls, m.meta)}** _(${m.ts})_`);
     lines.push('');
     lines.push(m.text);
     lines.push('');
@@ -203,13 +230,14 @@ $('send').addEventListener('submit', async (ev) => {
   const channel = $('channel').value;
   const visitorLanguage = $('visitorLanguage').value.trim() || null;
   const sessionId = $('sessionId').value;
+  const engine = $('engine').value;
 
   addMsg(message, 'user');
   $('message').value = '';
   $('sendBtn').disabled = true;
 
   try {
-    const res = await fetch(backendUrl + '/web/chat/test', {
+    const res = await fetch(backendUrl + '/web/chat/test-hexagonal', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -220,6 +248,7 @@ $('send').addEventListener('submit', async (ev) => {
         channel,
         session_id: sessionId,
         visitor_language: visitorLanguage,
+        engine,
       }),
     });
 
@@ -228,7 +257,7 @@ $('send').addEventListener('submit', async (ev) => {
     if (!res.ok) {
       addMsg(`[${res.status}] ${data.detail || JSON.stringify(data)}`, 'error');
     } else {
-      addMsg(data.answer, 'bot');
+      addMsg(data.answer, 'bot', engineLabel(engine));
     }
   } catch (err) {
     addMsg('Error de red: ' + err.message, 'error');
