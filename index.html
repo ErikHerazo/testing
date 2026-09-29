@@ -220,6 +220,15 @@ $('download').addEventListener('click', () => {
   URL.revokeObjectURL(url);
 });
 
+// Enter envía; Mayúsculas+Enter hace salto de línea. No se envía mientras
+// se compone un carácter (acentos, IME).
+$('message').addEventListener('keydown', (ev) => {
+  if (ev.key === 'Enter' && !ev.shiftKey && !ev.isComposing) {
+    ev.preventDefault();
+    if (!$('sendBtn').disabled) $('send').requestSubmit();
+  }
+});
+
 $('send').addEventListener('submit', async (ev) => {
   ev.preventDefault();
   const message = $('message').value.trim();
