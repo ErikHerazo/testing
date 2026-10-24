@@ -100,15 +100,6 @@
       <input id="visitorLanguage" type="text" placeholder="(auto)">
     </div>
   </div>
-  <div class="row">
-    <div>
-      <label for="engine">Modelo</label>
-      <select id="engine">
-        <option value="azure_openai">GPT-4o (Azure OpenAI)</option>
-        <option value="claude">Claude Sonnet 5 (vía Foundry)</option>
-      </select>
-    </div>
-  </div>
   <div class="row session">
     <div>
       <label for="sessionId">Session ID</label>
@@ -134,19 +125,17 @@ function loadSettings() {
   $('backendUrl').value = localStorage.getItem('bt_backendUrl') || 'https://angelbot-backend-staging.thankfulsea-e0e163f9.westus2.azurecontainerapps.io';
   $('secret').value = localStorage.getItem('bt_secret') || '';
   $('channel').value = localStorage.getItem('bt_channel') || 'website';
-  $('engine').value = localStorage.getItem('bt_engine') || 'azure_openai';
 }
 function saveSettings() {
   localStorage.setItem('bt_backendUrl', $('backendUrl').value.trim());
   localStorage.setItem('bt_secret', $('secret').value);
   localStorage.setItem('bt_channel', $('channel').value);
-  localStorage.setItem('bt_engine', $('engine').value);
 }
-['backendUrl', 'secret', 'channel', 'engine'].forEach((id) => $(id).addEventListener('change', saveSettings));
+['backendUrl', 'secret', 'channel'].forEach((id) => $(id).addEventListener('change', saveSettings));
 
-function engineLabel(value) {
-  return value === 'claude' ? 'Claude Sonnet 5 (Foundry)' : 'GPT-4o (Azure OpenAI)';
-}
+// Staging es solo Claude: la consola ya no ofrece elegir motor.
+const ENGINE = 'claude';
+const ENGINE_LABEL = 'Claude Sonnet 5 (Foundry)';
 
 let transcript = [];
 
@@ -189,7 +178,7 @@ function buildMarkdown() {
     ``,
     `- **Backend:** ${$('backendUrl').value.trim()}`,
     `- **Canal:** ${$('channel').value}`,
-    `- **Modelo:** ${engineLabel($('engine').value)}`,
+    `- **Modelo:** ${ENGINE_LABEL}`,
     `- **Session ID:** ${$('sessionId').value}`,
     `- **Exportado:** ${new Date().toISOString()}`,
     ``,
@@ -239,7 +228,6 @@ $('send').addEventListener('submit', async (ev) => {
   const channel = $('channel').value;
   const visitorLanguage = $('visitorLanguage').value.trim() || null;
   const sessionId = $('sessionId').value;
-  const engine = $('engine').value;
 
   addMsg(message, 'user');
   $('message').value = '';
@@ -257,7 +245,7 @@ $('send').addEventListener('submit', async (ev) => {
         channel,
         session_id: sessionId,
         visitor_language: visitorLanguage,
-        engine,
+        engine: ENGINE,
       }),
     });
 
@@ -266,7 +254,7 @@ $('send').addEventListener('submit', async (ev) => {
     if (!res.ok) {
       addMsg(`[${res.status}] ${data.detail || JSON.stringify(data)}`, 'error');
     } else {
-      addMsg(data.answer, 'bot', engineLabel(engine));
+      addMsg(data.answer, 'bot', ENGINE_LABEL);
     }
   } catch (err) {
     addMsg('Error de red: ' + err.message, 'error');

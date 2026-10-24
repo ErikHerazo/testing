@@ -14,11 +14,9 @@ de endpoint de prueba (`POST <backend>/web/chat/test-hexagonal`), no solo AGB.
    (ej. `http://localhost:8000` si corres el backend en local con Docker).
 3. En "X-Test-Secret" pon el valor de `CHAT_TEST_SECRET` del `.env` de ese
    backend.
-4. En "Modelo" elegí qué LLM responde (GPT-4o o Claude, si el backend lo
-   soporta — ver requisito abajo).
-5. Escribe mensajes y revisa las respuestas del bot en tiempo real.
+4. Escribe mensajes y revisa las respuestas del bot en tiempo real.
 
-La configuración (URL, secret, canal, modelo) se guarda en `localStorage` del
+La configuración (URL, secret, canal) se guarda en `localStorage` del
 navegador, así que no hay que reescribirla cada vez.
 
 ## Requisito del lado del backend
@@ -28,15 +26,13 @@ El backend del cliente debe exponer:
 ```
 POST /web/chat/test-hexagonal
 Headers: X-Test-Secret: <valor de CHAT_TEST_SECRET>
-Body: {"message": str, "channel": str, "session_id": str|null, "visitor_language": str|null, "engine": "azure_openai"|"claude"}
+Body: {"message": str, "channel": str, "session_id": str|null, "visitor_language": str|null, "engine": "claude"}
 Response: {"session_id": str, "answer": str}
 ```
 
-`engine` es opcional (default `azure_openai`) — un backend que no soporte
-elegir motor puede ignorarlo y siempre va a responder igual.
+La consola siempre envía `engine: "claude"` (el agente LangGraph, el mismo
+que corre en producción); ya no ofrece GPT-4o.
 
 En `AngelBotBackend` (cliente AGB) esto vive en
 `app/web/routes/chat_test_hexagonal.py` — deshabilitado (404) a menos que
-`CHAT_TEST_SECRET` esté definido en el `.env` de ese backend. Existe también
-`POST /web/chat/test` (mismo contrato, sin el campo `engine`, siempre
-GPT-4o) para clientes que todavía no migraron al pipeline hexagonal.
+`CHAT_TEST_SECRET` esté definido en el `.env` de ese backend.
